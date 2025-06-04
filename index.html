@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>StreetR Seller</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="app">
+        <header id="app-header" class="app-header" style="display: none;">
+            <div class="header-left">
+                <span id="history-icon" class="history-icon">📜</span> </div>
+            <div class="header-title">StreetR Seller</div>
+            <div class="header-right">
+                <button id="logout-button" class="logout-button" style="display: none;">Logout</button>
+            </div>
+        </header>
+
+        <main id="page-container">
+            <div id="login-page" class="page active">
+                <div class="page-content centered-content">
+                    <img src="assets/app-icon.png" alt="App Icon" class="app-icon-large">
+                    <h2>Welcome to StreetR Seller!</h2>
+                    <p>Manage your shop with ease.</p>
+                    <input type="email" id="login-email" placeholder="Enter your email" autocomplete="email">
+                    <div class="terms-container">
+                        <input type="checkbox" id="terms-conditions">
+                        <label for="terms-conditions">I agree to the <a href="#" target="_blank">Terms & Conditions</a></label>
+                    </div>
+                    <button id="login-button">Login</button>
+                    <p id="login-message" class="error-message"></p>
+                </div>
+            </div>
+
+            <div id="profile-setup-page" class="page">
+                <div class="page-header">Profile Setup</div>
+                <div class="page-content">
+                    <form id="profile-form">
+                        <label for="shop-name">Shop Name:</label>
+                        <input type="text" id="shop-name" required>
+
+                        <label for="business-category">Business Category:</label>
+                        <select id="business-category" required>
+                            <option value="">Select Category</option>
+                            <option value="Street Food">Street Food</option>
+                            <option value="Bakery">Bakery</option>
+                            <option value="Fast Food">Fast Food</option>
+                            <option value="Grocery">Grocery</option>
+                            <option value="Vegetables">Vegetables</option>
+                            <option value="Dairy Product">Dairy Product</option>
+                            <option value="Puja Shop">Puja Shop</option>
+                        </select>
+
+                        <label for="mobile-number">Mobile Number:</label>
+                        <input type="tel" id="mobile-number" required pattern="[0-9]{10}">
+
+                        <label for="street-name">Street Name:</label>
+                        <input type="text" id="street-name" required>
+
+                        <label for="district">District:</label>
+                        <input type="text" id="district" required>
+
+                        <label for="state">State:</label>
+                        <input type="text" id="state" required>
+
+                        <label for="pincode">Pincode:</label>
+                        <input type="text" id="pincode" required pattern="[0-9]{6}">
+
+                        <button type="submit" id="save-profile-button">Save Profile</button>
+                    </form>
+                    <p id="profile-message" class="message"></p>
+                </div>
+            </div>
+
+            <div id="lets-go-page" class="page">
+                <div class="page-content centered-content">
+                    <img src="assets/app-icon.png" alt="App Icon" class="app-icon-large">
+                    <h2>Setup Complete!</h2>
+                    <p>Welcome! You're all set to manage your orders.</p>
+                    <button id="lets-go-button">Let's Go!</button>
+                </div>
+            </div>
+
+            <div id="main-app-view" class="page">
+                <div id="orders-page-content" class="tab-content active">
+                    <div class="orders-header">
+                        <h3>📦 Incoming Orders</h3>
+                        <div class="auto-confirm-switch">
+                            <label for="auto-confirm-toggle">Auto-Confirm Orders:</label>
+                            <label class="switch">
+                                <input type="checkbox" id="auto-confirm-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="orders-list">
+                        </div>
+                </div>
+
+                <div id="add-menu-page-content" class="tab-content">
+                    <h3>➕ Add/Edit Menu Items</h3>
+                    <div id="menu-items-list">
+                        </div>
+                    <button id="fab-add-menu" class="fab">+</button>
+
+                    <div id="menu-item-modal" class="modal">
+                        <div class="modal-content">
+                            <span class="close-button">&times;</span>
+                            <h4 id="modal-title">Add New Menu Item</h4>
+                            <input type="hidden" id="menu-item-id"> <label for="item-image">Image Upload:</label>
+                            <input type="file" id="item-image" accept="image/*">
+                            <label for="item-name">Item Name:</label>
+                            <input type="text" id="item-name" required>
+                            <label for="item-price">Price:</label>
+                            <input type="number" id="item-price" step="0.01" required>
+                            <label for="item-description">Description (Optional):</label>
+                            <textarea id="item-description" rows="3"></textarea>
+                            <button id="save-menu-item-button" class="blue-button">Save Item</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="profile-display-page-content" class="tab-content">
+                    <h3>👤 Your Profile</h3>
+                    <div id="profile-details-view">
+                        <p><strong>Shop Name:</strong> <span id="view-shop-name"></span></p>
+                        <p><strong>Business Category:</strong> <span id="view-business-category"></span></p>
+                        <p><strong>Mobile Number:</strong> <span id="view-mobile-number"></span></p>
+                        <p><strong>Street:</strong> <span id="view-street-name"></span></p>
+                        <p><strong>District:</strong> <span id="view-district"></span></p>
+                        <p><strong>State:</strong> <span id="view-state"></span></p>
+                        <p><strong>Pincode:</strong> <span id="view-pincode"></span></p>
+                        <button id="edit-profile-button">Edit Profile</button>
+                    </div>
+                    <h4>Seller QR Code:</h4>
+                    <div id="seller-qr-code">
+                        <p>(QR Code will link to your menu page - to be implemented)</p>
+                    </div>
+                </div>
+
+                 <div id="history-page-content" class="tab-content">
+                    <h3>📜 Order History</h3>
+                    <div id="order-history-list">
+                        <p>Order history functionality to be implemented.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <nav id="bottom-nav" class="bottom-nav" style="display: none;">
+            <button data-page="orders-page-content" class="nav-item active">📦 Orders</button>
+            <button data-page="add-menu-page-content" class="nav-item">➕ Add Menu</button>
+            <button data-page="profile-display-page-content" class="nav-item">👤 Profile</button>
+        </nav>
+    </div>
+
+    <script src="js/supabaseClient.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/menu.js"></script>
+    <script src="js/orders.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
