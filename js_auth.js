@@ -24,13 +24,11 @@ async function handleLogin() {
     try {
         // For passwordless login (magic link)
         const { data, error } = await supabase.auth.signInWithOtp({
-            email: email,
-            options: {
-                // shouldCreateUser: false, // Set to true if you want to allow new sign-ups via magic link
-                emailRedirectTo: window.location.origin, // Or your specific app URL
-            },
-        });
-
+    email: email,
+    options: {
+        emailRedirectTo: 'https://jeyaram1023.github.io/StreetR-google/',  // 💡 Full path needed here
+    },
+});
         if (error) {
             throw error;
         }
