@@ -16,7 +16,7 @@ const menuItemsListDiv = document.getElementById('menu-items-list');
 
 let currentEditingItemId = null;
 
-// Open modal
+// Open Modal
 fabAddMenu.addEventListener('click', () => {
     modalTitle.textContent = "Add New Menu Item";
     menuItemIdInput.value = '';
@@ -28,19 +28,21 @@ fabAddMenu.addEventListener('click', () => {
     menuItemModal.style.display = 'block';
 });
 
-// Close modal
+// Close Modal
 closeModalButton.addEventListener('click', () => {
     menuItemModal.style.display = 'none';
 });
-window.addEventListener('click', (e) => {
-    if (e.target === menuItemModal) menuItemModal.style.display = 'none';
+window.addEventListener('click', (event) => {
+    if (event.target == menuItemModal) {
+        menuItemModal.style.display = 'none';
+    }
 });
 
-// Save menu item
+// Save Menu Item
 saveMenuItemButton.addEventListener('click', async () => {
     const userProfile = window.userProfile;
     if (!userProfile || !userProfile.id) {
-        alert('Profile not loaded.');
+        alert('Profile not loaded. Cannot save item.');
         return;
     }
 
@@ -50,7 +52,7 @@ saveMenuItemButton.addEventListener('click', async () => {
     const imageFile = itemImageInput.files[0];
 
     if (!itemName || isNaN(itemPrice) || itemPrice <= 0) {
-        alert('Please enter a valid name and price.');
+        alert('Item name and a valid price are required.');
         return;
     }
 
@@ -84,22 +86,24 @@ saveMenuItemButton.addEventListener('click', async () => {
         const { data, error } = response;
         if (error) throw error;
 
-        // Upload image if selected
         if (imageFile && data) {
             await uploadItemImage(imageFile, data.id, userProfile.id);
         }
 
-        alert(`Item ${currentEditingItemId ? 'updated' : 'added'} successfully!`);
+        alert(`Menu item ${currentEditingItemId ? 'updated' : 'saved'} successfully!`);
         menuItemModal.style.display = 'none';
         fetchMenuItems();
 
     } catch (error) {
-        console.error('Save error:', error);
+        console.error('Error saving menu item:', error);
         alert(`Error: ${error.message}`);
     }
 });
 
+// Upload Image to Supabase
 async function uploadItemImage(file, itemId, sellerId) {
+    if (!file) return null;
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${sellerId}/${itemId}-${Date.now()}.${fileExt}`;
     const filePath = `menu-item-images/${fileName}`;
@@ -107,7 +111,11 @@ async function uploadItemImage(file, itemId, sellerId) {
     try {
         const { error: uploadError } = await supabase.storage
             .from('menu_item_images')
-            .upload(filePath, file, { upsert: true });
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
@@ -119,17 +127,23 @@ async function uploadItemImage(file, itemId, sellerId) {
             .update({ image_url: publicUrl, updated_at: new Date().toISOString() })
             .eq('id', itemId);
 
-        console.log("Image uploaded:", publicUrl);
+        console.log('Image uploaded and URL saved:', publicUrl);
+        return publicUrl;
+
     } catch (error) {
-        console.error("Image upload failed:", error.message);
-        alert("Image upload error.");
+        console.error('Error uploading image:', error);
+        alert('Image upload failed: ' + error.message);
+        return null;
     }
 }
 
-// Fetch all menu items
+// Fetch Menu Items
 async function fetchMenuItems() {
     const userProfile = window.userProfile;
-    if (!userProfile?.id) return;
+    if (!userProfile || !userProfile.id) {
+        menuItemsListDiv.innerHTML = '<p>Please complete your profile to add menu items.</p>';
+        return;
+    }
 
     try {
         const { data, error } = await supabase
@@ -139,80 +153,103 @@ async function fetchMenuItems() {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+
         renderMenuItems(data);
     } catch (error) {
-        console.error("Fetch failed:", error);
-        menuItemsListDiv.innerHTML = '<p>Error loading items.</p>';
+        console.error('Error fetching menu items:', error);
+        menuItemsListDiv.innerHTML = '<p>Could not load menu items.</p>';
     }
 }
 
-// Render menu items to page
+// Render Menu Items
 function renderMenuItems(items) {
     menuItemsListDiv.innerHTML = '';
-    if (!items.length) {
-        menuItemsListDiv.innerHTML = '<p>No items yet.</p>';
+    if (!items || items.length === 0) {
+        menuItemsListDiv.innerHTML = '<p>No menu items yet. Click the "+" button to add one!</p>';
         return;
     }
 
     items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'menu-item-card';
-        card.innerHTML = `
-            <img src="${item.image_url || 'https://via.placeholder.com/80'}" class="item-image-preview" alt="${item.name}">
+        const itemCard = document.createElement('div');
+        itemCard.className = 'menu-item-card';
+        itemCard.innerHTML = `
+            <img src="${item.image_url || 'https://via.placeholder.com/80x80.png?text=No+Image'}" class="item-image-preview" alt="${item.name}">
             <div class="item-details">
                 <h4>${item.name}</h4>
-                <p>₹${item.price.toFixed(2)}</p>
-                <p>${item.description || ''}</p>
+                <p>Price: ₹${parseFloat(item.price).toFixed(2)}</p>
+                <p>${item.description || 'No description'}</p>
             </div>
             <div class="item-controls">
-                <button class="btn-edit-item" data-id="${item.id}">✏️</button>
-                <button class="btn-delete-item" data-id="${item.id}">🗑️</button>
+                <label class="switch small-switch" title="Availability">
+                    <input type="checkbox" data-id="${item.id}" class="availability-toggle" ${item.is_available ? 'checked' : ''}>
+                    <span class="slider round"></span>
+                </label>
+                <button class="btn-edit-item" data-id="${item.id}" title="Edit">✏️</button>
+                <button class="btn-delete-item" data-id="${item.id}" title="Delete">🗑️</button>
             </div>
         `;
-        menuItemsListDiv.appendChild(card);
+        menuItemsListDiv.appendChild(itemCard);
     });
 
-    document.querySelectorAll('.btn-edit-item').forEach(btn =>
-        btn.addEventListener('click', e =>
-            handleEditItem(e.currentTarget.dataset.id, items)
-        )
-    );
-    document.querySelectorAll('.btn-delete-item').forEach(btn =>
-        btn.addEventListener('click', e =>
-            handleDeleteItem(e.currentTarget.dataset.id)
-        )
-    );
+    document.querySelectorAll('.btn-edit-item').forEach(button => {
+        button.addEventListener('click', (e) => handleEditItem(e.currentTarget.dataset.id, items));
+    });
+    document.querySelectorAll('.btn-delete-item').forEach(button => {
+        button.addEventListener('click', (e) => handleDeleteItem(e.currentTarget.dataset.id));
+    });
+    document.querySelectorAll('.availability-toggle').forEach(toggle => {
+        toggle.addEventListener('change', (e) => handleAvailabilityToggle(e.currentTarget.dataset.id, e.currentTarget.checked));
+    });
 }
 
-function handleEditItem(id, items) {
-    const item = items.find(i => i.id === id);
-    if (!item) return;
-    modalTitle.textContent = "Edit Menu Item";
-    currentEditingItemId = id;
-    menuItemIdInput.value = id;
-    itemNameInput.value = item.name;
-    itemPriceInput.value = item.price;
-    itemDescriptionInput.value = item.description || '';
-    itemImageInput.value = ''; // Can't pre-fill file input
-    menuItemModal.style.display = 'block';
-}
-
-async function handleDeleteItem(id) {
-    if (!confirm("Delete this item?")) return;
-
-    try {
-        await supabase
-            .from('menu_items')
-            .delete()
-            .eq('id', id);
-        fetchMenuItems();
-    } catch (error) {
-        console.error("Delete failed:", error);
-        alert("Could not delete item.");
+function handleEditItem(itemId, items) {
+    const itemToEdit = items.find(item => item.id === itemId);
+    if (itemToEdit) {
+        modalTitle.textContent = "Edit Menu Item";
+        currentEditingItemId = itemId;
+        menuItemIdInput.value = itemId;
+        itemNameInput.value = itemToEdit.name;
+        itemPriceInput.value = parseFloat(itemToEdit.price).toFixed(2);
+        itemDescriptionInput.value = itemToEdit.description || '';
+        itemImageInput.value = '';
+        menuItemModal.style.display = 'block';
     }
 }
 
-// Auto-load menu when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    if (window.userProfile?.id) fetchMenuItems();
-});
+async function handleDeleteItem(itemId) {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+
+    const userProfile = window.userProfile;
+    try {
+        const { error } = await supabase
+            .from('menu_items')
+            .delete()
+            .eq('id', itemId)
+            .eq('seller_id', userProfile.id);
+
+        if (error) throw error;
+
+        alert('Item deleted successfully.');
+        fetchMenuItems();
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function handleAvailabilityToggle(itemId, isAvailable) {
+    const userProfile = window.userProfile;
+    try {
+        const { error } = await supabase
+            .from('menu_items')
+            .update({ is_available: isAvailable, updated_at: new Date().toISOString() })
+            .eq('id', itemId)
+            .eq('seller_id', userProfile.id);
+
+        if (error) throw error;
+    } catch (error) {
+        console.error('Error updating availability:', error);
+        alert(`Error: ${error.message}`);
+        fetchMenuItems();
+    }
+}
