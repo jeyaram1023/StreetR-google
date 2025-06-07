@@ -129,27 +129,21 @@ function displayProfileDetails(profile) {
         viewState.textContent = profile.state || 'N/A';
         viewPincode.textContent = profile.pincode || 'N/A';
 
-        // QR Code Logic (Conceptual - requires a QR library)
-        // For now, just a placeholder.
-        // Example: generateQRCode(`https://yourcustomerapp.com/menu/${profile.id}`);
-        const menuUrl = `${window.location.origin}/menu-viewer.html?sellerId=${profile.id}`; // Example URL
-        sellerQRCodeDiv.innerHTML = `<p>Scan to view menu (QR Code for: ${menuUrl})</p><p><small>You'd use a library like qrcode.js to generate this.</small></p>`;
-        // To generate a real QR code, you could use a library like `qrcode.js` or `qrious`.
-        // Example with a placeholder for a QR library:
-        // if (typeof QRCode !== 'undefined') {
-        //     sellerQRCodeDiv.innerHTML = ''; // Clear previous
-        //     new QRCode(sellerQRCodeDiv, {
-        //         text: menuUrl,
-        //         width: 128,
-        //         height: 128
-        //     });
-        // } else {
-        //     sellerQRCodeDiv.innerHTML = `<p>QR Code library not loaded. URL: ${menuUrl}</p>`;
-        // }
+        // ✅ Working QR Code Logic
+        const menuUrl = `${window.location.origin}/menu-viewer.html?sellerId=${profile.id}`;
+        sellerQRCodeDiv.innerHTML = ""; // Clear previous QR if any
 
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(sellerQRCodeDiv, {
+                text: menuUrl,
+                width: 128,
+                height: 128
+            });
+        } else {
+            sellerQRCodeDiv.innerHTML = `<p>QR Code library not loaded. URL: ${menuUrl}</p>`;
+        }
     }
 }
-
 
 // Event Listeners
 if (profileForm) {
