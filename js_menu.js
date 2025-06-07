@@ -247,7 +247,7 @@ async function uploadItemImage(file, itemId, sellerId) {
     const filePath = `menu-item-images/${fileName}`;
     try {
         const { data, error } = await supabase.storage
-            [span_1](start_span).from('menu_item_images') // Ensure this bucket exists and has correct policies[span_1](end_span)
+            [span_1](start_span).from('menu-item-images') // Ensure this bucket exists and has correct policies[span_1](end_span)
             .upload(filePath, file, {
                 cacheControl: '3600',
                 upsert: true // Overwrites file if it already exists, useful for editing
