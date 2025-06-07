@@ -255,7 +255,7 @@ async function uploadItemImage(file, itemId, sellerId) {
         if (error) throw error;
         
         // Get public URL
-        const { data: { publicUrl } } = supabase.storage.from('menu_item_images').getPublicUrl(filePath);
+        const { data: { publicUrl } } = supabase.storage.from('menu-item-images').getPublicUrl(filePath);
         
         // Update the menu_items table with this URL
         await supabase
