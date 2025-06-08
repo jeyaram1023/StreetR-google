@@ -4,11 +4,22 @@ const ordersListDiv = document.getElementById('orders-list');
 const autoConfirmToggle = document.getElementById('auto-confirm-toggle');
 let ordersSubscription = null;
 
+// Ask for notification permission proactively
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            console.log(`Notification permission: ${permission}`);
+        });
+    }
+}
+
+// Run on script load
+requestNotificationPermission();
+
 autoConfirmToggle.addEventListener('change', (event) => {
     const isAutoConfirmOn = event.target.checked;
     localStorage.setItem('autoConfirmOrders', isAutoConfirmOn);
     console.log(`Auto-confirm orders: ${isAutoConfirmOn ? 'ON' : 'OFF'}`);
-    // You might want to immediately process pending orders if it's turned ON.
 });
 
 function loadAutoConfirmSetting() {
@@ -24,11 +35,11 @@ function renderOrder(order) {
     orderItemDiv.dataset.orderId = order.id;
 
     let itemsHtml = '<ul>';
-    if (order.order_details && Array.isArray(order.order_details.items)) { // Assuming items is an array in jsonb
+    if (order.order_details && Array.isArray(order.order_details.items)) {
         order.order_details.items.forEach(item => {
             itemsHtml += `<li>${item.name} (Qty: ${item.quantity}) - ₹${(item.price * item.quantity).toFixed(2)}</li>`;
         });
-    } else if (typeof order.order_details === 'string') { // Fallback if it's just a string
+    } else if (typeof order.order_details === 'string') {
         itemsHtml += `<li>${order.order_details}</li>`;
     } else {
         itemsHtml += `<li>Details not available in expected format.</li>`;
@@ -52,14 +63,12 @@ function renderOrder(order) {
             ` : `<p>Order actioned.</p>`}
         </div>
     `;
-    // Prepend to show newest first, or append
     ordersListDiv.prepend(orderItemDiv);
 
-    // Add event listeners for the new buttons
     if (order.status === 'Pending') {
-        orderItemDiv.querySelector('.btn-not-available')?.addEventListener('click', ()_ => updateOrderStatus(order.id, 'Not Available'));
-        orderItemDiv.querySelector('.btn-late-delivery')?.addEventListener('click', ()_ => updateOrderStatus(order.id, 'Late Delivery'));
-        orderItemDiv.querySelector('.btn-confirm-order')?.addEventListener('click', ()_ => updateOrderStatus(order.id, 'Confirmed'));
+        orderItemDiv.querySelector('.btn-not-available')?.addEventListener('click', () => updateOrderStatus(order.id, 'Not Available'));
+        orderItemDiv.querySelector('.btn-late-delivery')?.addEventListener('click', () => updateOrderStatus(order.id, 'Late Delivery'));
+        orderItemDiv.querySelector('.btn-confirm-order')?.addEventListener('click', () => updateOrderStatus(order.id, 'Confirmed'));
     }
 }
 
@@ -75,16 +84,15 @@ async function updateOrderStatus(orderId, newStatus) {
             .from('orders')
             .update({ status: newStatus, updated_at: new Date().toISOString() })
             .eq('id', orderId)
-            .eq('seller_id', userProfile.id) // Ensure seller owns this order
+            .eq('seller_id', userProfile.id)
             .select()
             .single();
 
         if (error) throw error;
 
         console.log(`Order ${orderId} updated to ${newStatus}`);
-        alert(`Order ${orderId} marked as "${newStatus}". Notice: Sala is Chauhan my streetr customer app.`); // As per requirement
+        alert(`Order ${orderId} marked as "${newStatus}". Notice: Sala is Chauhan my streetr customer app.`);
 
-        // UI will update via realtime subscription, or you can manually update it here:
         const orderCard = ordersListDiv.querySelector(`.order-item[data-order-id="${orderId}"]`);
         if (orderCard) {
             orderCard.querySelector('.order-status').textContent = newStatus;
@@ -97,7 +105,6 @@ async function updateOrderStatus(orderId, newStatus) {
     }
 }
 
-
 function subscribeToOrders() {
     const userProfile = window.userProfile;
     if (!userProfile || !userProfile.id) {
@@ -107,48 +114,40 @@ function subscribeToOrders() {
     }
 
     if (ordersSubscription) {
-        ordersSubscription.unsubscribe(); // Unsubscribe from previous if any
+        ordersSubscription.unsubscribe();
     }
 
-    ordersListDiv.innerHTML = "<p>Listening for new orders...</p>"; // Initial message
+    ordersListDiv.innerHTML = "<p>Listening for new orders...</p>";
 
     ordersSubscription = supabase
-        .channel('public:orders') // Channel name, can be anything unique
+        .channel('public:orders')
         .on(
             'postgres_changes',
             {
-                event: '*', // Listen to 'INSERT', 'UPDATE', 'DELETE' or '*' for all
+                event: '*',
                 schema: 'public',
                 table: 'orders',
-                filter: `seller_id=eq.${userProfile.id}` // Only for this seller
+                filter: `seller_id=eq.${userProfile.id}`
             },
             (payload) => {
                 console.log('Change received!', payload);
-                // For simplicity, re-fetch all orders on any change or handle payload smartly
-                // fetchInitialOrders(); // This can be inefficient for many updates
-
-                const changedOrder = payload.new || payload.old; // payload.new for INSERT/UPDATE, payload.old for DELETE
+                const changedOrder = payload.new || payload.old;
 
                 if (payload.eventType === 'INSERT') {
-                    // If auto-confirm is ON and status is Pending, confirm it
                     if (autoConfirmToggle.checked && payload.new.status === 'Pending') {
                         console.log(`Auto-confirming order ${payload.new.id}`);
                         updateOrderStatus(payload.new.id, 'Confirmed');
-                        // The renderOrder for this will happen when the 'Confirmed' update comes through
                     } else {
-                        renderOrder(payload.new); // Add new order to the top
+                        renderOrder(payload.new);
                         showNotification(`New Order Received! ID: ${payload.new.id.substring(0,8)}`);
                     }
                 } else if (payload.eventType === 'UPDATE') {
-                    // Find and update the existing order card
                     const orderCard = ordersListDiv.querySelector(`.order-item[data-order-id="${payload.new.id}"]`);
                     if (orderCard) {
-                        // Re-render that specific card or update its content
-                        // For simplicity, let's remove and re-add (could be smoother)
                         orderCard.remove();
                         renderOrder(payload.new);
                     } else {
-                        renderOrder(payload.new); // If not found, add it (should ideally be an update)
+                        renderOrder(payload.new);
                     }
                 } else if (payload.eventType === 'DELETE') {
                     const orderCard = ordersListDiv.querySelector(`.order-item[data-order-id="${payload.old.id}"]`);
@@ -161,10 +160,9 @@ function subscribeToOrders() {
         .subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
                 console.log('Successfully subscribed to orders channel!');
-                fetchInitialOrders(); // Fetch existing orders once subscribed
+                fetchInitialOrders();
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                 console.error('Order subscription error/closed:', status, err);
-                // Optionally, try to resubscribe after a delay
             }
         });
 }
@@ -179,12 +177,12 @@ async function fetchInitialOrders() {
             .from('orders')
             .select('*')
             .eq('seller_id', userProfile.id)
-            .order('created_at', { ascending: false }) // Show newest first
-            .limit(20); // Load a reasonable number initially
+            .order('created_at', { ascending: false })
+            .limit(20);
 
         if (error) throw error;
 
-        ordersListDiv.innerHTML = ''; // Clear loading message
+        ordersListDiv.innerHTML = '';
         if (data.length === 0) {
             ordersListDiv.innerHTML = "<p>No orders yet.</p>";
         } else {
@@ -205,7 +203,6 @@ function unsubscribeFromOrders() {
 }
 
 function showNotification(message) {
-    // Basic browser notification (if permission granted)
     if (Notification.permission === "granted") {
         new Notification("StreetR Seller", { body: message, icon: 'assets/app-icon.png' });
     } else if (Notification.permission !== "denied") {
@@ -215,10 +212,8 @@ function showNotification(message) {
             }
         });
     }
-    // You can also use an in-app notification banner
     console.log("Notification:", message);
 }
 
-
-// Load settings when orders script is loaded
+// Load setting on script start
 loadAutoConfirmSetting();
