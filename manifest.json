@@ -1,7 +1,7 @@
 {
   "name": "StreetR Seller",
   "short_name": "StreetR",
-  "start_url": "/StreetR_seller/index.html",
+  "start_url": "/StreetR-google/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ff6600",
