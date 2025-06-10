@@ -6,12 +6,12 @@ const urlsToCache = [
   "/streetr-seller-app/manifest.json",
   "/streetr-seller-app/assets/icon-192x192.png",
   "/streetr-seller-app/assets/icon-512x512.png",
-  "/streetr-seller-app/js_supabaseClient.js",
-  "/streetr-seller-app/js_auth.js",
-  "/streetr-seller-app/js_profile.js",
-  "/streetr-seller-app/js_menu.js",
-  "/streetr-seller-app/js_orders.js",
-  "/streetr-seller-app/js_main.js"
+  "/streetr-seller-app/js/supabaseClient.js",
+  "/streetr-seller-app/js/auth.js",
+  "/streetr-seller-app/js/profile.js",
+  "/streetr-seller-app/js/menu.js",
+  "/streetr-seller-app/js/orders.js",
+  "/streetr-seller-app/js/main.js"
   "/streetr-seller-app/firebase-messaging-sw.js"
 ];
 
