@@ -1,10 +1,44 @@
-// js/orders.js
+// orders.js
 
-const ordersListDiv = document.getElementById('orders-list');
-const autoConfirmToggle = document.getElementById('auto-confirm-toggle');
-let ordersSubscription = null;
+// Firebase config (replace with your values)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
 
-// Ask for notification permission proactively
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+// Service worker registration
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then(registration => {
+            console.log('Service Worker registered:', registration);
+            messaging.useServiceWorker(registration);
+        })
+        .catch(err => console.error('Service Worker registration failed:', err));
+}
+
+// Request Firebase push notification permission
+function requestFirebasePushPermission() {
+    messaging.requestPermission()
+        .then(() => messaging.getToken({ vapidKey: 'YOUR_WEB_PUSH_CERTIFICATE_KEY_PAIR' }))
+        .then(token => {
+            console.log("Firebase Push Token:", token);
+            // Optionally save this token to your backend
+        })
+        .catch(err => {
+            console.error("Firebase Push permission denied:", err);
+        });
+}
+requestFirebasePushPermission();
+
+
+// Request browser notification permission
 function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission().then(permission => {
@@ -12,9 +46,23 @@ function requestNotificationPermission() {
         });
     }
 }
-
-// Run on script load
 requestNotificationPermission();
+
+function showNotification(message) {
+    if (Notification.permission === "granted") {
+        new Notification("StreetR Seller", {
+            body: message,
+            icon: 'assets/app-icon.png'
+        });
+    }
+    console.log("Notification:", message);
+}
+
+// --- Order Handling ---
+
+const ordersListDiv = document.getElementById('orders-list');
+const autoConfirmToggle = document.getElementById('auto-confirm-toggle');
+let ordersSubscription = null;
 
 autoConfirmToggle.addEventListener('change', (event) => {
     const isAutoConfirmOn = event.target.checked;
@@ -91,7 +139,7 @@ async function updateOrderStatus(orderId, newStatus) {
         if (error) throw error;
 
         console.log(`Order ${orderId} updated to ${newStatus}`);
-        alert(`Order ${orderId} marked as "${newStatus}". Notice: Sala is Chauhan my streetr customer app.`);
+        alert(`Order ${orderId} marked as "${newStatus}".`);
 
         const orderCard = ordersListDiv.querySelector(`.order-item[data-order-id="${orderId}"]`);
         if (orderCard) {
@@ -139,7 +187,7 @@ function subscribeToOrders() {
                         updateOrderStatus(payload.new.id, 'Confirmed');
                     } else {
                         renderOrder(payload.new);
-                        showNotification(`New Order Received! ID: ${payload.new.id.substring(0,8)}`);
+                        showNotification(`New Order Received! ID: ${payload.new.id.substring(0, 8)}`);
                     }
                 } else if (payload.eventType === 'UPDATE') {
                     const orderCard = ordersListDiv.querySelector(`.order-item[data-order-id="${payload.new.id}"]`);
@@ -202,18 +250,5 @@ function unsubscribeFromOrders() {
     }
 }
 
-function showNotification(message) {
-    if (Notification.permission === "granted") {
-        new Notification("StreetR Seller", { body: message, icon: 'assets/app-icon.png' });
-    } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                new Notification("StreetR Seller", { body: message, icon: 'assets/app-icon.png' });
-            }
-        });
-    }
-    console.log("Notification:", message);
-}
-
-// Load setting on script start
+// Init
 loadAutoConfirmSetting();
