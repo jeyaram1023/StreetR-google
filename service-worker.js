@@ -1,33 +1,24 @@
 const CACHE_NAME = "streetr-seller-cache-v1";
-const urlsToCache = [
-  "/StreetR_seller_app/",
-  "/StreetR_seller_app/index.html",
-  "/StreetR_seller_app/css_style.css",
-  "/StreetR_seller_app/manifest.json",
-  "/StreetR_seller_app/assets/icon-192x192.png",
-  "/StreetR_seller_app/assets/icon-512x512.png",
-  "/StreetR_seller_app/js_supabaseClient.js",
-  "/StreetR_seller_app/js_auth.js",
-  "/StreetR_seller_app/js_profile.js",
-  "/StreetR_seller_app/js_menu.js",
-  "/StreetR_seller_app/js_orders.js",
-  "/StreetR_seller_app/js_main.js"
-  "/StreetR_seller_app/js_supabaseClient.js"
-  "/StreetR_seller_app/terms_conditions.html"
+const URLS_TO_CACHE = [
+  "/StreetR-seller-app/",
+  "/StreetR-seller-app/index.html",
+  "/StreetR-seller-app/manifest.json",
+  "https://assets.onecompiler.app/42q5e2pr5/43m4t5ddk/web-app-manifest-192x192.png",
+  "https://assets.onecompiler.app/42q5e2pr5/43m4t5ddk/1000130216.png"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
+      return cache.addAll(URLS_TO_CACHE);
     })
   );
 });
 
 self.addEventListener("fetch", (event) => {
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
     })
   );
 });
