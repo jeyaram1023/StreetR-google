@@ -1,10 +1,10 @@
 {
-  "name": "StreetR Seller",
+  "name": "StreetR Seller App",
   "short_name": "StreetR",
-  "start_url": "/StreetR-google/index.html",
+  "start_url": "/StreetR-seller-app/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ff6600",
+  "theme_color": "#2E6F40",
   "orientation": "portrait",
   "icons": [
     {
