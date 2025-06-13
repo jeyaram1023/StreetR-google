@@ -10,6 +10,7 @@ const itemNameInput = document.getElementById('item-name');
 const itemPriceInput = document.getElementById('item-price');
 const itemDescriptionInput = document.getElementById('item-description');
 const itemImageInput = document.getElementById('item-image');
+const imagePreview = document.getElementById('image-preview'); // 👈 preview element
 
 const menuItemsListDiv = document.getElementById('menu-items-list');
 
@@ -23,8 +24,23 @@ fabAddMenu.addEventListener('click', () => {
   itemPriceInput.value = '';
   itemDescriptionInput.value = '';
   itemImageInput.value = '';
+  imagePreview.src = ''; // clear preview
   currentEditingItemId = null;
   menuItemModal.style.display = 'block';
+});
+
+// Preview image when selected
+itemImageInput.addEventListener('change', () => {
+  const file = itemImageInput.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      imagePreview.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    imagePreview.src = '';
+  }
 });
 
 // Close Modal
@@ -139,8 +155,9 @@ function renderMenuItems(items) {
   items.forEach(item => {
     const itemCard = document.createElement('div');
     itemCard.className = 'menu-item-card';
+    const imageUrl = item.image_url ? `${item.image_url}?t=${Date.now()}` : 'https://via.placeholder.com/80x80.png?text=No+Image';
     itemCard.innerHTML = `
-      <img src="${item.image_url || 'https://via.placeholder.com/80x80.png?text=No+Image'}" alt="${item.name}" class="item-image-preview">
+      <img src="${imageUrl}" alt="${item.name}" class="item-image-preview">
       <div class="item-details">
         <h4>${item.name}</h4>
         <p>Price: ₹${parseFloat(item.price).toFixed(2)}</p>
@@ -194,6 +211,7 @@ function handleEditItem(itemId, items) {
     itemPriceInput.value = parseFloat(itemToEdit.price).toFixed(2);
     itemDescriptionInput.value = itemToEdit.description || '';
     itemImageInput.value = '';
+    imagePreview.src = itemToEdit.image_url || '';
     menuItemModal.style.display = 'block';
   }
 }
@@ -269,7 +287,7 @@ async function uploadItemImage(file, itemId, sellerId) {
 
   try {
     const { error: uploadError } = await supabase.storage
-      .from('menu_item_images')
+      .from('menu-item-images')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: true
@@ -279,7 +297,7 @@ async function uploadItemImage(file, itemId, sellerId) {
 
     const { data: { publicUrl } } = supabase
       .storage
-      .from('menu_item_images')
+      .from('menu-item-images')
       .getPublicUrl(filePath);
 
     return publicUrl;
@@ -291,5 +309,5 @@ async function uploadItemImage(file, itemId, sellerId) {
   }
 }
 
-// Initial call (e.g., from main.js)
+// Initial load
 fetchMenuItems();
