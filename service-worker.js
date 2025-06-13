@@ -3,8 +3,8 @@ const URLS_TO_CACHE = [
   "/StreetR-seller-app/",
   "/StreetR-seller-app/index.html",
   "/StreetR-seller-app/manifest.json",
-  "https://assets.onecompiler.app/42q5e2pr5/43m4t5ddk/web-app-manifest-192x192.png",
-  "https://assets.onecompiler.app/42q5e2pr5/43m4t5ddk/1000130216.png"
+  "https://assets.onecompiler.app/42q5e2pr5/43mm8muqm/1000131397.png",
+  "https://assets.onecompiler.app/42q5e2pr5/43mm88v46/1000131390.png"
 ];
 
 self.addEventListener("install", (event) => {
