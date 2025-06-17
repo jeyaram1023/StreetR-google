@@ -28,7 +28,7 @@ async function handleLogin() {
             email: email,
             options: { 
                 shouldCreateUser: true,
-                emailRedirectTo: 'https://jeyaram1023.github.io/StreetR-seller-app/', // Change to your app's redirect
+                emailRedirectTo: 'https://jeyaram1023.github.io/StreetR-seller-app/', // Change to your own
             },
         });
 
@@ -36,7 +36,7 @@ async function handleLogin() {
             throw error;
         }
 
-        loginMessage.textContent = 'Login link sent! Please check your email to complete the process';
+        loginMessage.textContent = 'Login link sent! Please check your email';
     } catch (error) {
         console.error('Login error!', error);
         loginMessage.textContent = `Error: ${error.message}`;
@@ -83,7 +83,6 @@ async function getCurrentUser() {
     }
 }
 
-// Handle Auth state
 supabase.auth.onAuthStateChange(async (event, session) => {
     if (session && session.user) {
         console.log('User is authenticated!', session.user);
@@ -98,18 +97,21 @@ supabase.auth.onAuthStateChange(async (event, session) => {
         if (error && error.code === "PGRST404") {
             console.log("Profile not found, creating.");
 
-            // Insert profile with user_type = "Seller"
+            // Insert profile with user_type = Seller
             const { error: insertError } = await supabase.from("profiles").insert([{
                 id: session.user.id,
                 user_type: "Seller",
-                // add other fields if needed
+                // add additional fields if needed
             }]);
 
             if (insertError) {
                 console.error("Error inserting profile.", insertError);
+                alert("Error creating profile.");
             } else {
                 console.log("Profile successfully created.");
             }
+        } else if (error) {
+            console.error("Error retrieving profile.", error);
         }
 
         // Store to localStorage for future use
