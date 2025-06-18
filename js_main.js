@@ -132,13 +132,20 @@ async function checkAuthState() {
         }
 
 
-        if (window.userProfile) {
-            console.log("Profile loaded:", window.userProfile.shop_name);
-            navigateToPage('main-app-view', 'orders-page-content'); // Default to orders page
-        } else {
-            console.log("No profile found for user, navigating to profile setup.");
-            navigateToPage('profile-setup-page');
-        }
+        // js/main.js - CORRECTED CODE
+
+// Check not only if a profile exists, but if it's a COMPLETE seller profile.
+if (window.userProfile && window.userProfile.shop_name) {
+    // If shop_name exists, the profile is complete. Go to the main app.
+    console.log("Complete profile loaded for:", window.userProfile.shop_name);
+    navigateToPage('main-app-view', 'orders-page-content');
+} else {
+    // If profile exists but has no shop_name, or if profile is null,
+    // they are a new seller and must go to the setup page.
+    console.log("Incomplete profile found, navigating to profile setup.");
+    navigateToPage('profile-setup-page');
+}
+
         // Request notification permission once user is logged in and likely to receive orders
         if (Notification.permission !== "granted" && Notification.permission !== "denied") {
             Notification.requestPermission();
