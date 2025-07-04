@@ -1,189 +1,192 @@
-// js/profile.js
+// js/main.js
 
-const profileForm = document.getElementById('profile-form');
-const profileMessage = document.getElementById('profile-message');
-const letsGoButton = document.getElementById('lets-go-button');
-
-// Profile Setup Page Elements
-const shopNameInput = document.getElementById('shop-name');
-const businessCategoryInput = document.getElementById('business-category');
-const mobileNumberInput = document.getElementById('mobile-number');
-const streetNameInput = document.getElementById('street-name');
-const districtInput = document.getElementById('district');
-const stateInput = document.getElementById('state');
-const pincodeInput = document.getElementById('pincode');
-
-// Profile Display Page Elements
-const viewShopName = document.getElementById('view-shop-name');
-const viewBusinessCategory = document.getElementById('view-business-category');
-const viewMobileNumber = document.getElementById('view-mobile-number');
-const viewStreetName = document.getElementById('view-street-name');
-const viewDistrict = document.getElementById('view-district');
-const viewState = document.getElementById('view-state');
-const viewPincode = document.getElementById('view-pincode');
-const editProfileButton = document.getElementById('edit-profile-button');
-const sellerQRCodeDiv = document.getElementById('seller-qr-code');
+const pages = document.querySelectorAll('.page');
+const navItems = document.querySelectorAll('.nav-item');
+const tabContents = document.querySelectorAll('#main-app-view .tab-content');
+const appHeader = document.getElementById('app-header');
+const bottomNav = document.getElementById('bottom-nav');
+const historyIcon = document.getElementById('history-icon');
+const logoutBtn = document.getElementById('logout-button');
 
 
-async function saveProfile() {
-    const user = window.currentUser;
-    if (!user) {
-        profileMessage.textContent = 'You must be logged in to save a profile.';
-        return;
-    }
+window.currentUser = null;
+window.userProfile = null;
 
-    const profileData = {
-        id: user.id, // Link to auth.uid()
-        user_type: 'Seller',
-        shop_name: shopNameInput.value,
-        business_category: businessCategoryInput.value,
-        mobile_number: mobileNumberInput.value,
-        street_name: streetNameInput.value,
-        district: districtInput.value,
-        state: stateInput.value,
-        pincode: pincodeInput.value,
-        updated_at: new Date().toISOString()
-    };
+function navigateToPage(pageId, tabContentId = null) {
+    pages.forEach(page => {
+        page.classList.remove('active');
+        if (page.id === pageId) {
+            page.classList.add('active');
+        }
+    });
 
-    if (!profileData.shop_name || !profileData.business_category || !profileData.mobile_number ||
-        !profileData.street_name || !profileData.district || !profileData.state || !profileData.pincode) {
-        profileMessage.textContent = 'All fields are required.';
-        profileMessage.style.color = 'red';
-        return;
-    }
+    // Handle main app view tabs
+    if (pageId === 'main-app-view') {
+        appHeader.style.display = 'flex';
+        bottomNav.style.display = 'flex';
+        logoutBtn.style.display = 'block';
 
-    profileMessage.textContent = 'Saving...';
-    profileMessage.style.color = 'inherit';
+        tabContents.forEach(tab => tab.classList.remove('active'));
+        navItems.forEach(nav => nav.classList.remove('active'));
 
-    try {
-        const { data, error } = await supabase
-            .from('profiles')
-            .upsert(profileData, { onConflict: 'id' })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        localStorage.setItem('userProfile', JSON.stringify(data));
-        window.userProfile = data;
-        profileMessage.textContent = 'Profile saved successfully!';
-        profileMessage.style.color = 'green';
-        setTimeout(() => {
-            navigateToPage('lets-go-page');
-        }, 1000);
-    } catch (error) {
-        console.error('Error saving profile:', error);
-        profileMessage.textContent = `Error: ${error.message}`;
-        profileMessage.style.color = 'red';
-    }
-}
-
-async function fetchProfile(userId) {
-    try {
-        const { data, error, status } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .eq('user_type', 'Seller')
-            .single();
-
-        if (error && status !== 406) {
-            throw error;
+        let activeTabFound = false;
+        if (tabContentId) {
+            const targetTab = document.getElementById(tabContentId);
+            const targetNavItem = bottomNav.querySelector(`[data-page="${tabContentId}"]`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                activeTabFound = true;
+            }
+            if (targetNavItem) {
+                targetNavItem.classList.add('active');
+            }
         }
 
-        if (data) {
-            localStorage.setItem('userProfile', JSON.stringify(data));
-            window.userProfile = data;
-            return data;
+        // Default to orders tab if no specific tab or if target not found
+        if (!activeTabFound) {
+            document.getElementById('orders-page-content').classList.add('active');
+            bottomNav.querySelector('[data-page="orders-page-content"]').classList.add('active');
         }
-        return null;
-    } catch (error) {
-        console.error('Error fetching profile:', error.message);
-        return null;
+
+        // Trigger actions for the active tab
+        const currentActiveTabId = document.querySelector('#main-app-view .tab-content.active').id;
+        handleTabChange(currentActiveTabId);
+
+    } else { // Not in main app view (e.g. login, profile setup)
+        appHeader.style.display = 'none';
+        bottomNav.style.display = 'none';
+        logoutBtn.style.display = 'none';
+        unsubscribeFromOrders(); // Unsubscribe when leaving main app view
     }
 }
 
-function populateProfileForm(profile) {
-    if (profile) {
-        shopNameInput.value = profile.shop_name || '';
-        businessCategoryInput.value = profile.business_category || '';
-        mobileNumberInput.value = profile.mobile_number || '';
-        streetNameInput.value = profile.street_name || '';
-        districtInput.value = profile.district || '';
-        stateInput.value = profile.state || '';
-        pincodeInput.value = profile.pincode || '';
+// **MODIFIED**: Made function async and added robust profile fetching
+async function handleTabChange(activeTabId) {
+    // Unsubscribe from orders if not on orders page and subscription exists
+    if (activeTabId !== 'orders-page-content' && window.ordersSubscription) {
+        unsubscribeFromOrders();
+    }
+
+    switch (activeTabId) {
+        case 'orders-page-content':
+            if (window.userProfile) { // Ensure profile is loaded
+                subscribeToOrders(); // Subscribe or re-subscribe
+                loadAutoConfirmSetting();
+            } else {
+                 document.getElementById('orders-list').innerHTML = '<p>Please complete your profile to view orders.</p>';
+            }
+            break;
+        case 'add-menu-page-content':
+            if (window.userProfile) {
+                fetchMenuItems(); // Load menu items
+            } else {
+                document.getElementById('menu-items-list').innerHTML = '<p>Please complete your profile to manage your menu.</p>';
+            }
+            break;
+        case 'profile-display-page-content':
+            // **NEW**: Robust logic to fetch profile if not already loaded
+            const profileDetailsView = document.getElementById('profile-details-view');
+
+            if (window.userProfile) {
+                // If profile is already loaded, display it instantly.
+                displayProfileDetails(window.userProfile);
+            } else if (window.currentUser) {
+                // If not loaded, but we have a logged-in user, fetch it.
+                profileDetailsView.innerHTML = '<p>Loading profile...</p>';
+                try {
+                    const profile = await fetchProfile(window.currentUser.id);
+                    if (profile) {
+                        // fetchProfile already sets window.userProfile
+                        displayProfileDetails(profile);
+                    } else {
+                        // This means fetch completed but found no profile
+                        profileDetailsView.innerHTML = '<p>No profile found. Please complete your profile setup.</p>';
+                        document.getElementById('seller-qr-code').innerHTML = '';
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch profile on tab change:", error);
+                    profileDetailsView.innerHTML = '<p>Error loading profile. Please try refreshing the page.</p>';
+                }
+            } else {
+                // If there's no user logged in (edge case)
+                profileDetailsView.innerHTML = '<p>You are not logged in.</p>';
+            }
+            break;
+        case 'history-page-content':
+            // Load history data if implementing this page
+            document.getElementById('order-history-list').innerHTML = "<p>Order history would be shown here.</p>";
+            break;
     }
 }
 
-// **MODIFIED**: This function now correctly generates the QR code and displays all details.
-function displayProfileDetails(profile) {
-    if (profile && profile.id) {
-        // 1. Populate Text Details
-        viewShopName.textContent = profile.shop_name || 'N/A';
-        viewBusinessCategory.textContent = profile.business_category || 'N/A';
-        viewMobileNumber.textContent = profile.mobile_number || 'N/A';
-        viewStreetName.textContent = profile.street_name || 'N/A';
-        viewDistrict.textContent = profile.district || 'N/A';
-        viewState.textContent = profile.state || 'N/A';
-        viewPincode.textContent = profile.pincode || 'N/A';
 
-        // 2. Generate QR Code
-        // Clear any previous QR code or placeholder text
-        sellerQRCodeDiv.innerHTML = '';
+// Bottom Navigation Click Handler
+navItems.forEach(item => {
+    item.addEventListener('click', () => {
+        const targetTabId = item.getAttribute('data-page');
+        navigateToPage('main-app-view', targetTabId);
+    });
+});
 
-        // Construct the full URL for the customer-facing menu.
-        // Assumes your customer page is named `customer-menu.html` and is in the same directory.
-        const menuUrl = `${window.location.origin}${window.location.pathname.replace('index.html', '')}customer-menu.html?sellerId=${profile.id}`;
+// History Icon Click Handler
+historyIcon.addEventListener('click', () => {
+    navigateToPage('main-app-view', 'history-page-content');
+});
 
-        try {
-            // Use the qrcode.js library to create the QR code
-            new QRCode(sellerQRCodeDiv, {
-                text: menuUrl,
-                width: 180,
-                height: 180,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
+// Check auth state on initial load
+async function checkAuthState() {
+    const user = await getCurrentUser();
+    if (user) {
+        window.currentUser = user;
+        console.log("User is logged in:", user.email);
+        
+        // Fetch profile from server to ensure it's up-to-date
+        window.userProfile = await fetchProfile(user.id);
 
-            // Add a helpful text label below the generated QR code
-            const qrLabel = document.createElement('p');
-            qrLabel.textContent = 'Customers can scan this code to view your menu.';
-            qrLabel.style.marginTop = '10px';
-            qrLabel.style.fontSize = '0.9em';
-            sellerQRCodeDiv.appendChild(qrLabel);
+        // Check not only if a profile exists, but if it's a COMPLETE seller profile.
+        if (window.userProfile && window.userProfile.shop_name) {
+            // If shop_name exists, the profile is complete. Go to the main app.
+            console.log("Complete profile loaded for:", window.userProfile.shop_name);
+            navigateToPage('main-app-view', 'orders-page-content');
+        } else {
+            // If profile has no shop_name, or if profile is null, go to setup.
+            console.log("Incomplete profile found, navigating to profile setup.");
+            navigateToPage('profile-setup-page');
+        }
 
-        } catch (err) {
-            console.error("QR Code generation failed:", err);
-            sellerQRCodeDiv.innerHTML = "<p>Could not generate QR code.</p>";
+        // Request notification permission
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
         }
 
     } else {
-        // This message will show if the profile data couldn't be loaded
-        const profileDetailsView = document.getElementById('profile-details-view');
-        profileDetailsView.innerHTML = '<p>Your profile could not be loaded. Please try logging out and back in.</p>';
-        sellerQRCodeDiv.innerHTML = ''; // Ensure QR code area is blank
+        console.log("User is not logged in.");
+        navigateToPage('login-page');
     }
 }
 
+// Handle session refresh (e.g., after magic link login)
+supabase.auth.onAuthStateChange((event, session) => {
+    console.log("Auth state changed:", event, session);
+    if (event === 'SIGNED_IN' && session) {
+        // When user signs in, trigger the main auth check to fetch profile and navigate
+        checkAuthState();
+    } else if (event === 'SIGNED_OUT') {
+        window.currentUser = null;
+        window.userProfile = null;
+        localStorage.removeItem('userProfile');
+        localStorage.removeItem('autoConfirmOrders');
+        navigateToPage('login-page');
+    }
+});
 
-// Event Listeners
-if (profileForm) {
-    profileForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        saveProfile();
-    });
-}
+// Initialize the app
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuthState(); // Check auth state when DOM is ready
 
-if (letsGoButton) {
-    letsGoButton.addEventListener('click', () => {
-        navigateToPage('main-app-view', 'orders-page-content');
-    });
-}
-
-if (editProfileButton) {
-    editProfileButton.addEventListener('click', () => {
-        populateProfileForm(window.userProfile);
-        navigateToPage('profile-setup-page');
-    });
-}
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/StreetR-seller-app/service-worker.js')
+          .then(reg => console.log('✅ Service Worker registered', reg))
+          .catch(err => console.error('❌ Service Worker failed:', err));
+    }
+});
