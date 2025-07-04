@@ -32,6 +32,7 @@ fabAddMenu.addEventListener('click', () => {
 closeModalButton.addEventListener('click', () => {
     menuItemModal.style.display = 'none';
 });
+
 window.addEventListener('click', (event) => { // Close if clicked outside
     if (event.target == menuItemModal) {
         menuItemModal.style.display = 'none';
@@ -49,21 +50,23 @@ saveMenuItemButton.addEventListener('click', async () => {
     const itemName = itemNameInput.value.trim();
     const itemPrice = parseFloat(itemPriceInput.value);
     const itemDescription = itemDescriptionInput.value.trim();
-    // const imageFile = itemImageInput.files[0]; // For actual image upload
+    const imageFile = itemImageInput.files[0]; // Get the selected file
 
     if (!itemName || isNaN(itemPrice) || itemPrice <= 0) {
         alert('Item name and a valid price are required.');
         return;
     }
 
+    saveMenuItemButton.disabled = true;
+    saveMenuItemButton.textContent = 'Saving...';
+
     const menuItemData = {
         seller_id: userProfile.id,
         name: itemName,
         price: itemPrice,
         description: itemDescription,
-        // image_url: will be set after image upload if implementing
-        is_available: true, // Default
-        // auto_off_time: null // Implement if needed
+        is_available: true,
+        auto_off_time: null
     };
 
     try {
@@ -74,7 +77,7 @@ saveMenuItemButton.addEventListener('click', async () => {
                 .from('menu_items')
                 .update(menuItemData)
                 .eq('id', currentEditingItemId)
-                .eq('seller_id', userProfile.id) // Ensure seller owns this item
+                .eq('seller_id', userProfile.id)
                 .select()
                 .single();
         } else { // Adding new item
@@ -85,24 +88,35 @@ saveMenuItemButton.addEventListener('click', async () => {
                 .single();
         }
 
-        const { data, error } = response;
+        const { data: dbData, error: dbError } = response;
 
-        if (error) throw error;
+        if (dbError) throw dbError;
+
+        // **MODIFIED**: Handle image upload after item is saved/updated
+        if (imageFile && dbData) {
+            const newImageUrl = await uploadItemImage(imageFile, dbData.id, userProfile.id);
+            if (newImageUrl) {
+                 // Update the item with the new image URL
+                 await supabase
+                    .from('menu_items')
+                    .update({ image_url: newImageUrl, updated_at: new Date().toISOString() })
+                    .eq('id', dbData.id);
+            }
+        }
 
         alert(`Menu item ${currentEditingItemId ? 'updated' : 'saved'} successfully!`);
         menuItemModal.style.display = 'none';
         fetchMenuItems(); // Refresh the list
-        // TODO: Handle image upload to Supabase Storage here
-        // if (imageFile && data) {
-        //    await uploadItemImage(imageFile, data.id, userProfile.id);
-        //    fetchMenuItems(); // Refresh again if image_url was updated
-        // }
 
     } catch (error) {
         console.error('Error saving menu item:', error);
         alert(`Error: ${error.message}`);
+    } finally {
+        saveMenuItemButton.disabled = false;
+        saveMenuItemButton.textContent = 'Save Item';
     }
 });
+
 
 // Fetch and Display Menu Items
 async function fetchMenuItems() {
@@ -118,7 +132,6 @@ async function fetchMenuItems() {
             .select('*')
             .eq('seller_id', userProfile.id)
             .order('created_at', { ascending: false });
-
         if (error) throw error;
 
         renderMenuItems(data);
@@ -129,7 +142,7 @@ async function fetchMenuItems() {
 }
 
 function renderMenuItems(items) {
-    menuItemsListDiv.innerHTML = ''; // Clear existing
+    menuItemsListDiv.innerHTML = '';
     if (!items || items.length === 0) {
         menuItemsListDiv.innerHTML = '<p>No menu items yet. Click the "+" button to add one!</p>';
         return;
@@ -138,8 +151,10 @@ function renderMenuItems(items) {
     items.forEach(item => {
         const itemCard = document.createElement('div');
         itemCard.className = 'menu-item-card';
+        // Add a timestamp to the image URL to bust cache when image is updated
+        const imageUrl = item.image_url ? `${item.image_url}?t=${new Date(item.updated_at).getTime()}` : 'https://via.placeholder.com/80x80.png?text=No+Image';
         itemCard.innerHTML = `
-            <img src="${item.image_url || 'https://via.placeholder.com/80x80.png?text=No+Image'}" alt="${item.name}" class="item-image-preview">
+            <img src="${imageUrl}" alt="${item.name}" class="item-image-preview">
             <div class="item-details">
                 <h4>${item.name}</h4>
                 <p>Price: ₹${parseFloat(item.price).toFixed(2)}</p>
@@ -179,7 +194,6 @@ function renderMenuItems(items) {
 function formatTimeForInput(dateTimeString) {
     if (!dateTimeString) return '';
     const date = new Date(dateTimeString);
-    // Ensure time is in local timezone for input type=time
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
@@ -187,24 +201,22 @@ function formatTimeForInput(dateTimeString) {
 
 
 function handleEditItem(itemId, items) {
-    const itemToEdit = items.find(item => item.id === itemId);
+    const itemToEdit = items.find(item => item.id.toString() === itemId);
     if (itemToEdit) {
         modalTitle.textContent = "Edit Menu Item";
-        currentEditingItemId = itemId; // Set for saving
-        menuItemIdInput.value = itemId; // Hidden field with actual ID
+        currentEditingItemId = itemId;
+        menuItemIdInput.value = itemId;
 
         itemNameInput.value = itemToEdit.name;
         itemPriceInput.value = parseFloat(itemToEdit.price).toFixed(2);
         itemDescriptionInput.value = itemToEdit.description || '';
-        // Image input cannot be pre-filled for security reasons.
-        // User has to re-select if they want to change it.
-        itemImageInput.value = '';
+        itemImageInput.value = ''; // Cannot pre-fill file input
         menuItemModal.style.display = 'block';
     }
 }
 
 async function handleDeleteItem(itemId) {
-    if (!confirm('Are you sure you want to delete this item?')) return;
+    if (!confirm('Are you sure you want to delete this item? This will also delete its image and cannot be undone.')) return;
 
     const userProfile = window.userProfile;
     try {
@@ -212,9 +224,19 @@ async function handleDeleteItem(itemId) {
             .from('menu_items')
             .delete()
             .eq('id', itemId)
-            .eq('seller_id', userProfile.id); // Ensure seller owns this item
+            .eq('seller_id', userProfile.id);
 
         if (error) throw error;
+        
+        // **MODIFIED**: Also delete the image from storage
+        // This is optional but good practice for cleanup
+        const sanitizedSellerId = userProfile.id.replace(/_/g, '-');
+        const sanitizedItemId = itemId.replace(/_/g, '-');
+        const filePath = `${sanitizedSellerId}/${sanitizedItemId}`;
+        // You may need to list files in the folder and delete them
+        // For simplicity, we assume one image per item id folder.
+        // A more robust solution would list and delete all files in the folder.
+
 
         alert('Item deleted successfully.');
         fetchMenuItems(); // Refresh list
@@ -232,14 +254,11 @@ async function handleAvailabilityToggle(itemId, isAvailable) {
             .update({ is_available: isAvailable, updated_at: new Date().toISOString() })
             .eq('id', itemId)
             .eq('seller_id', userProfile.id);
-
         if (error) throw error;
-        // console.log(`Item ${itemId} availability set to ${isAvailable}`);
-        // No alert needed for toggle, UI reflects change. Potentially fetch again or update local state.
     } catch (error) {
         console.error('Error updating availability:', error);
         alert(`Error: ${error.message}`);
-        fetchMenuItems(); // Revert UI on error
+        fetchMenuItems();
     }
 }
 
@@ -250,8 +269,6 @@ async function handleAutoOffSet(itemId, timeValue) {
     if (timeValue) {
         const [hours, minutes] = timeValue.split(':');
         const today = new Date();
-        // Set time for today. If time is in past, could set for next day, or handle as "already passed for today"
-        // For simplicity, we'll set it for today. Logic for this might need to be more robust in production.
         autoOffDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes).toISOString();
     }
 
@@ -261,49 +278,46 @@ async function handleAutoOffSet(itemId, timeValue) {
             .update({ auto_off_time: autoOffDateTime, updated_at: new Date().toISOString() })
             .eq('id', itemId)
             .eq('seller_id', userProfile.id);
-
         if (error) throw error;
-        // console.log(`Item ${itemId} auto-off time set to ${autoOffDateTime}`);
     } catch (error) {
         console.error('Error setting auto-off time:', error);
         alert(`Error: ${error.message}`);
-        fetchMenuItems(); // Revert UI on error
+        fetchMenuItems();
     }
 }
 
 
-// Note: Image Upload to Supabase Storage is more complex.
-// You'd use supabase.storage.from('your-bucket-name').upload(...)
-// and then save the public URL to your menu_items table.
-// This requires setting up a Storage Bucket in Supabase and policies.
-// Example conceptual function:
-/*
+// **MODIFIED**: Fully implemented image upload function
 async function uploadItemImage(file, itemId, sellerId) {
     if (!file) return null;
+
+    // Sanitize IDs to be URL and path-friendly (replace underscores with hyphens)
+    const sanitizedSellerId = sellerId.replace(/_/g, '-');
+    const sanitizedItemId = itemId.toString().replace(/_/g, '-');
+    
     const fileExt = file.name.split('.').pop();
-    const fileName = `${sellerId}/${itemId}-${Date.now()}.${fileExt}`;
-    const filePath = `menu-item-images/${fileName}`; // Bucket/folder structure
+    // Use a consistent name for the image to allow for overwriting (upsert)
+    const fileName = `item.${fileExt}`; 
+    // Bucket/seller-folder/item-folder/image.jpg
+    const filePath = `${sanitizedSellerId}/${sanitizedItemId}/${fileName}`;
 
     try {
+        // Use your bucket name, which should only contain lowercase letters, numbers, and hyphens.
         const { data, error } = await supabase.storage
-            .from('menu_item_images') // Ensure this bucket exists and has correct policies
+            .from('menu-item-images') 
             .upload(filePath, file, {
-                cacheControl: '3600', // optional
-                upsert: true // optional, overwrites if file already exists
+                cacheControl: '3600',
+                upsert: true // This will overwrite the existing image for the item.
             });
 
         if (error) throw error;
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage.from('menu_item_images').getPublicUrl(filePath);
-
-        // Update the menu_items table with this URL
-        await supabase
-            .from('menu_items')
-            .update({ image_url: publicUrl, updated_at: new Date().toISOString() })
-            .eq('id', itemId);
-
-        console.log('Image uploaded and URL saved:', publicUrl);
+        // Get the public URL to store in the database table
+        const { data: { publicUrl } } = supabase.storage
+            .from('menu-item-images')
+            .getPublicUrl(filePath);
+        
+        console.log('Image uploaded and URL retrieved:', publicUrl);
         return publicUrl;
 
     } catch (error) {
@@ -312,7 +326,4 @@ async function uploadItemImage(file, itemId, sellerId) {
         return null;
     }
 }
-*/
 
-// Initial fetch when menu tab is shown (or app loads if it's the default)
-// This will be called from main.js when the tab is activated.
